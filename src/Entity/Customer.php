@@ -2,13 +2,25 @@
 
 namespace App\Entity;
 
-use App\Repository\CustomerRepository;
-use Doctrine\Common\Collections\ArrayCollection;
-use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use App\Repository\CustomerRepository;
+use ApiPlatform\Core\Annotation\ApiFilter;
+use Doctrine\Common\Collections\Collection;
+use ApiPlatform\Core\Annotation\ApiResource;
+use Doctrine\Common\Collections\ArrayCollection;
+use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\OrderFilter;
+use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\SearchFilter;
+use Symfony\Component\Serializer\Annotation\Groups; 
 
 /**
  * @ORM\Entity(repositoryClass=CustomerRepository::class)
+ * @ApiResource(
+ * normalizationContext={
+ *      "groups"={"customers_read"}
+ *  }
+ * )
+ * @ApiFilter(SearchFilter::class, properties={"firstName":"partial","lastName","company"})
+ * @ApiFilter(OrderFilter::class)
  */
 class Customer
 {
@@ -21,32 +33,38 @@ class Customer
 
     /**
      * @ORM\Column(type="string", length=255)
+     * @Groups({"customers_read","invoices_read"})
      */
     private $firstName;
 
     /**
      * @ORM\Column(type="string", length=255)
+     * @Groups({"customers_read","invoices_read"})
      */
     private $lastName;
 
     /**
      * @ORM\Column(type="string", length=255)
+     * @Groups({"customers_read","invoices_read"})
      */
     private $email;
 
     /**
      * @ORM\Column(type="string", length=255, nullable=true)
+     * @Groups({"customers_read","invoices_read"})
      */
     private $company;
 
     /**
      * @ORM\OneToMany(targetEntity=Invoice::class, mappedBy="customer")
+     * @Groups({"customers_read"})
      */
     private $invoices;
 
     /**
      * @ORM\ManyToOne(targetEntity=User::class, inversedBy="customers")
      * @ORM\JoinColumn(nullable=false)
+     * @Groups({"customers_read"})
      */
     private $user;
 
@@ -58,6 +76,31 @@ class Customer
     public function getId(): ?int
     {
         return $this->id;
+    }
+    /**
+     * Permet de recuperer le total des invoices
+     * @Groups({"customers_read"})
+     *
+     * @return float|null
+     */
+    public function getTotalAmount(): ?float
+    {
+        return array_reduce($this->invoices->toArray(), function($total,$invoice){
+            return $total + $invoice->getAmount();
+        }, 0);
+    }
+
+    /**
+     * Permet de recuper le montant total non payé (montant total hors factures payées ou annulées)
+     * @Groups({"customers_read"})
+     *
+     * @return float|null
+     */
+    public function getUnpaidAmount(): ?float
+    {
+        return array_reduce($this->invoices->toArray(), function($total,$invoice){
+            return $total + ($invoice->getStatus()=== "PAID" || $invoice->getStatus()==="CANCELLED" ? 0 : $invoice->getAmount());
+        } , 0);
     }
 
     public function getFirstName(): ?string
