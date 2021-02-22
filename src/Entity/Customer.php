@@ -7,16 +7,25 @@ use App\Repository\CustomerRepository;
 use ApiPlatform\Core\Annotation\ApiFilter;
 use Doctrine\Common\Collections\Collection;
 use ApiPlatform\Core\Annotation\ApiResource;
+use ApiPlatform\Core\Annotation\ApiSubresource;
 use Doctrine\Common\Collections\ArrayCollection;
+use Symfony\Component\Serializer\Annotation\Groups;
+
 use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Core\Bridge\Doctrine\Orm\Filter\SearchFilter;
-use Symfony\Component\Serializer\Annotation\Groups; 
+
+use Symfony\Component\Validator\Constraints as Assert;
 
 /**
  * @ORM\Entity(repositoryClass=CustomerRepository::class)
  * @ApiResource(
- * normalizationContext={
+ *  normalizationContext={
  *      "groups"={"customers_read"}
+ *  },
+ *  collectionOperations={"GET", "POST"},
+ *  itemOperations={"GET","PUT","DELETE","PATCH"},
+ *  subresourceOperations={
+ *      "invoices_get_subresource"={"path"="/customers/{id}/invoices"}
  *  }
  * )
  * @ApiFilter(SearchFilter::class, properties={"firstName":"partial","lastName","company"})
@@ -28,24 +37,31 @@ class Customer
      * @ORM\Id
      * @ORM\GeneratedValue
      * @ORM\Column(type="integer")
+     * @Groups({"customers_read","invoices_read"})
      */
     private $id;
 
     /**
      * @ORM\Column(type="string", length=255)
      * @Groups({"customers_read","invoices_read"})
+     * @Assert\NotBlank(message="Le prénom du client est obligatoire")
+     * @Assert\Length(min=1, minMessage="Le prénom doit faire entre 1 et 255 caractères", max=255,  maxMessage="Le prénom doit faire entre 1 et 255 caractères")
      */
     private $firstName;
 
     /**
      * @ORM\Column(type="string", length=255)
      * @Groups({"customers_read","invoices_read"})
+     * @Assert\NotBlank(message="Le prénom du client est obligatoire")
+     * @Assert\Length(min=2, minMessage="Le nom doit faire entre 2 et 255 caractères", max=255,  maxMessage="Le nom doit faire entre 2 et 255 caractères")
      */
     private $lastName;
 
     /**
      * @ORM\Column(type="string", length=255)
      * @Groups({"customers_read","invoices_read"})
+     * @Assert\NotBlank(message="L'adresse mail du client est obligatoire")
+     * @Assert\Email(message="Le format de l'adresse e-mail doit être valide")
      */
     private $email;
 
@@ -58,6 +74,7 @@ class Customer
     /**
      * @ORM\OneToMany(targetEntity=Invoice::class, mappedBy="customer")
      * @Groups({"customers_read"})
+     * @ApiSubresource
      */
     private $invoices;
 
@@ -65,6 +82,7 @@ class Customer
      * @ORM\ManyToOne(targetEntity=User::class, inversedBy="customers")
      * @ORM\JoinColumn(nullable=false)
      * @Groups({"customers_read"})
+     * @Assert\NotBlank(message="L'utilisateur est obligatoire")
      */
     private $user;
 
@@ -77,8 +95,9 @@ class Customer
     {
         return $this->id;
     }
+
     /**
-     * Permet de recuperer le total des invoices
+     * Permet de récupérer le total des invoices
      * @Groups({"customers_read"})
      *
      * @return float|null
@@ -91,7 +110,7 @@ class Customer
     }
 
     /**
-     * Permet de recuper le montant total non payé (montant total hors factures payées ou annulées)
+     * Permet de récupérer le montant total non payé (montant total hors factures payées ou annulées)
      * @Groups({"customers_read"})
      *
      * @return float|null
@@ -99,7 +118,7 @@ class Customer
     public function getUnpaidAmount(): ?float
     {
         return array_reduce($this->invoices->toArray(), function($total,$invoice){
-            return $total + ($invoice->getStatus()=== "PAID" || $invoice->getStatus()==="CANCELLED" ? 0 : $invoice->getAmount());
+            return $total + ($invoice->getStatus() === "PAID" || $invoice->getStatus() === "CANCELLED" ? 0 : $invoice->getAmount()); 
         } , 0);
     }
 
